@@ -20,6 +20,10 @@
       <ul id="results" class="results" role="listbox" hidden></ul>
     </div>
     <div class="top-actions">
+      <button id="btnFavs" class="tbtn" title="Favoriten – gespeicherte Flüge" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2.8 2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8L12 2.8Z"/></svg>
+        <span>Favoriten</span><b id="favCount" class="cnt" hidden></b>
+      </button>
       <button id="btnLayers" class="tbtn" title="Karten, Ebenen und Filter" aria-expanded="false">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 8l10 5 10-5-10-5Zm-7.6 8.2L2 12.5l10 5 10-5-2.4-1.3L12 15l-7.6-3.8Zm0 4.5L2 17l10 5 10-5-2.4-1.3L12 19.5l-7.6-3.8Z"/></svg>
         <span>Ebenen</span><i id="filterDot" class="dot" hidden></i>
@@ -32,6 +36,7 @@
   </header>
 
   <aside id="layers" class="sheet layers" hidden></aside>
+  <aside id="favs" class="sheet layers favs" hidden></aside>
   <aside id="panel" class="panel" hidden></aside>
 
   <div id="banner" class="banner" hidden></div>

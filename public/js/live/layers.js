@@ -202,6 +202,7 @@ export function createLayers(map, app, { openaipKey, onFilter, onUnits, onLabels
       ${chk('filter.glider', 'Segelflugzeuge, Ballone, Drohnen')}
       ${chk('filter.flarm', 'FLARM-Sender (OGN)', 'Segelflug und Kleinflugzeuge ohne ADS-B')}
       ${chk('filter.ground', 'Am Boden', 'Rollende Flugzeuge und Bodenfahrzeuge')}
+      ${chk('filter.onlyFav', 'Nur Favoriten', 'Gespeicherte Flüge (★ oben rechts)', 'var(--accent2)')}
       ${chk('filter.onlyMil', 'Nur Militär', '', 'var(--mil)')}
       ${chk('filter.onlyHidden', 'Nur bei FR24 gesperrte', 'LADD/PIA – dort nicht oder anonym zu sehen', 'var(--hid)')}
       <div class="range" style="margin-top:6px">
@@ -240,7 +241,7 @@ export function createLayers(map, app, { openaipKey, onFilter, onUnits, onLabels
   const toggle = open => {
     sheet.hidden = !open;
     btn.setAttribute('aria-expanded', String(open));
-    if (open) render();
+    if (open) { app.closeSheets?.('layers'); render(); }
   };
   btn.addEventListener('click', () => toggle(sheet.hidden));
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !sheet.hidden) toggle(false); });

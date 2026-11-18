@@ -1,5 +1,6 @@
 // Alle Flugzeuge auf einer Canvas-Ebene – schnell genug auch für mehrere tausend Positionen
 import { ICONS, altColor, extrapolate, labelOf } from '../common.js';
+import { settings, isFav } from './settings.js';
 
 const RAD = Math.PI / 180;
 const PATHS = Object.fromEntries(Object.entries(ICONS).map(([k, v]) => [k, new Path2D(v.d)]));
@@ -106,6 +107,14 @@ export function createAircraftLayer(map, app) {
       const size = base * ic.scale * (ac.onGround ? 0.8 : 1);
       const k = size / 32;
       const isSel = ac.id === selId;
+      it.fav = settings.favorites.length > 0 && isFav(ac);
+      if (it.fav && !isSel) {
+        g.setTransform(dpr, 0, 0, dpr, 0, 0);
+        g.fillStyle = 'rgba(255, 181, 71, .18)';
+        g.strokeStyle = '#ffb547';
+        g.lineWidth = 2;
+        g.beginPath(); g.arc(x, y, size * 0.72, 0, Math.PI * 2); g.fill(); g.stroke();
+      }
       if (isSel) {
         g.setTransform(dpr, 0, 0, dpr, 0, 0);
         g.fillStyle = 'rgba(76, 194, 255, .22)';
@@ -127,7 +136,9 @@ export function createAircraftLayer(map, app) {
 
     // Beschriftungen (ohne Überlappung)
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    if (app.settings.labels && (z >= 7 || items.length < 120)) {
+    // Favoriten und das gewählte Flugzeug sind immer beschriftet, alle anderen je nach Einstellung und Zoom
+    const allLabels = app.settings.labels && (z >= 7 || items.length < 120);
+    {
       const twoLines = z >= 9;
       g.font = '600 11.5px Inter, system-ui, sans-serif';
       g.textBaseline = 'top';
@@ -136,11 +147,12 @@ export function createAircraftLayer(map, app) {
       const free = (r) => !placed.some(q => r.x < q.x + q.w && r.x + r.w > q.x && r.y < q.y + q.h && r.y + r.h > q.y);
       for (let i = items.length - 1; i >= 0; i--) { // obere zuerst
         const { ac, x, y, size } = items[i];
+        if (!allLabels && !items[i].fav && ac.id !== app.selectedId) continue;
         const l1 = labelOf(ac);
         const l2 = twoLines ? [app.fmt.altShort(ac.altFt, ac.onGround), ac.icaoType].filter(Boolean).join(' · ') : '';
         const tw = Math.max(g.measureText(l1).width, l2 ? g.measureText(l2).width * 0.9 : 0);
         const r = { x: x + size * 0.55, y: y - 7, w: tw + 4, h: l2 ? 27 : 14 };
-        if (ac.id !== app.selectedId && !free(r)) continue;
+        if (ac.id !== app.selectedId && !items[i].fav && !free(r)) continue;
         placed.push(r);
         g.lineWidth = 3;
         g.strokeStyle = 'rgba(5, 10, 20, .85)';

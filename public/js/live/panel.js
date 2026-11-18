@@ -6,6 +6,11 @@ import {
 const ago = s => (s < 60 ? `vor ${Math.max(0, Math.round(s))} s` : s < 3600 ? `vor ${Math.round(s / 60)} min` : `vor ${Math.round(s / 3600)} h`);
 const de = (n, d = 0) => n.toLocaleString('de-DE', { minimumFractionDigits: d, maximumFractionDigits: d });
 
+/** Schlüssel für Favoriten und Direktlinks: Flugnummer > Rufzeichen > Kennzeichen > Hex */
+export function favKey(ac, det) {
+  return (det?.route?.callsignIata || ac.callsign || ac.reg || ac.hex || '').toUpperCase();
+}
+
 export function createPanel(app) {
   const el = document.getElementById('panel');
   let cur = { id: null, det: undefined, photoKey: null };
@@ -29,9 +34,19 @@ export function createPanel(app) {
     if (act === 'close') app.select(null);
     if (act === 'follow') app.setFollow(!app.follow);
     if (act === 'center') app.centerOn(app.selectedId);
-    if (act === 'link') {
-      const url = `${location.origin}/#ac=${encodeURIComponent(app.selectedId)}`;
-      navigator.clipboard?.writeText(url).then(() => { e.target.textContent = 'Link kopiert ✓'; setTimeout(() => update(), 1500); }, () => prompt('Link zum Flugzeug:', url));
+    if (act === 'fav' || act === 'share') {
+      const ac = app.get(app.selectedId);
+      if (!ac) return;
+      const key = favKey(ac, app.details(ac));
+      if (act === 'fav') {
+        const saved = app.favorites.findFor(ac);
+        if (saved) { app.favorites.remove(saved); app.toast(`${saved} aus den Favoriten entfernt`); }
+        else if (app.favorites.add(key)) app.toast(`${key} in den Favoriten gespeichert`);
+        update();
+      } else if (!ac.callsign && !ac.reg) {
+        // ohne Flugnummer/Kennzeichen (z. B. FLARM): Link auf das Flugzeug selbst
+        app.share(null, `Flugzeug ${labelOf(ac)}`, e.target, `/#ac=${encodeURIComponent(ac.id)}`);
+      } else app.share(key, `Flug ${key}`, e.target);
     }
   });
 
@@ -185,7 +200,8 @@ export function createPanel(app) {
     $('actions').innerHTML = `
       <button class="btn ${app.follow ? 'on' : ''}" data-act="follow" title="Karte folgt dem Flugzeug">${app.follow ? '◉ Folgen an' : '◎ Folgen'}</button>
       <button class="btn" data-act="center">Zentrieren</button>
-      <button class="btn" data-act="link">Link kopieren</button>`;
+      <button class="btn ${app.favorites.findFor(ac) ? 'fav-on' : ''}" data-act="fav" title="In den Favoriten speichern">${app.favorites.findFor(ac) ? '★ Gemerkt' : '☆ Merken'}</button>
+      <button class="btn" data-act="share" title="Direktlink zu diesem Flug teilen">↗ Teilen</button>`;
     const hex = ac.hex;
     const links = [];
     if (hex) {

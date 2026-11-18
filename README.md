@@ -22,7 +22,9 @@ npm run dev        # mit Auto-Neustart bei Code-Änderungen
 ## Live-Karte
 
 * **Flugzeuge anklicken:** Das Panel zeigt Foto, Airline mit Logo, Route mit Fortschritt und Restflugzeit sowie Typ, Kennzeichen und Halter. Dazu kommen Höhe (barometrisch, GPS, eingestellte Zielhöhe), Geschwindigkeiten (Grund, TAS/IAS, Mach), Wind und Außentemperatur (soweit gesendet), Squawk, Signalart, Datenquellen und ein Höhen-/Geschwindigkeitsprofil. Die Spur reicht bis zu 60 Minuten zurück, ab dem Zeitpunkt, an dem der Server das Flugzeug zum ersten Mal sieht.
-* **Folgen:** Die Karte wandert mit dem Flugzeug mit. „Link kopieren“ erzeugt einen Direktlink (`/#ac=<hex>`).
+* **Folgen:** Die Karte wandert mit dem Flugzeug mit.
+* **Favoriten** (★ oben rechts): Flugnummern, Rufzeichen oder Kennzeichen mit Notiz speichern, z. B. „LH 400 – Anna nach New York“, oder im Detail-Panel mit „☆ Merken“. Die Liste zeigt, wer gerade fliegt (weltweit, nicht nur im Ausschnitt), ein Klick springt zum Flug. Auf der Karte haben Favoriten einen goldenen Ring und sind immer beschriftet. „Nur Favoriten“ blendet alles andere aus. Gespeichert wird im Browser.
+* **Teilen:** „↗ Teilen“ erzeugt einen Direktlink wie `/f/LH400` (auf dem Handy über das Teilen-Menü). Ist der Flug noch nicht in der Luft, zeigt die Seite das an und wählt ihn automatisch aus, sobald er startet. Flugzeuge ohne Rufzeichen und Kennzeichen (z. B. FLARM) bekommen einen Link `/#ac=<id>`.
 * **Suche** (Taste `/`): Flugnummer (`LH 400`, `FR1234`), Rufzeichen (`DLH400`), Kennzeichen (`D-AIXA` oder `DAIXA`), ICAO-Hex, Typ (`A388`) und Flughäfen (Name, Stadt, IATA/ICAO). Flugzeuge außerhalb des Ausschnitts findet die Suche weltweit über adsb.fi.
 * **Karten:** Dunkel, Straße, Grau (OpenStreetMap), Gelände (OpenTopoMap), Satellit (Esri)
 * **Ebenen:** Flughäfen (OurAirports, Klick zeigt das aktuelle METAR), Regenradar (RainViewer), Tag/Nacht-Grenze, Lufträume (openAIP, nur mit `OPENAIP_KEY`)

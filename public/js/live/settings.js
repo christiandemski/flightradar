@@ -8,9 +8,10 @@ export const DEFAULTS = {
   units: 'metric',
   filter: {
     airliner: true, light: true, heli: true, glider: true, ground: false, flarm: true,
-    onlyMil: false, onlyHidden: false, minAlt: 0, maxAlt: 60000,
+    onlyMil: false, onlyHidden: false, onlyFav: false, minAlt: 0, maxAlt: 60000,
   },
   view: { lat: 50.11, lon: 8.68, z: 8 },
+  favorites: [],          // [{ q: 'LH400', note: 'Anna' }]
 };
 
 function merge(def, val) {
@@ -37,9 +38,22 @@ export function filterActive() {
   return Object.keys(DEFAULTS.filter).some(k => settings.filter[k] !== DEFAULTS.filter[k]);
 }
 
+// Favoriten: Flugzeug-IDs, die zu einem gespeicherten Flug gehören (füllt favorites.js)
+export const favState = { ids: new Set() };
+const norm = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+export function isFav(ac) {
+  if (!ac) return false;
+  if (favState.ids.has(ac.id)) return true;
+  const keys = [ac.callsign, ac.reg, ac.hex, ac.cn].filter(Boolean).map(norm);
+  return settings.favorites.some(f => keys.includes(norm(f.q)));
+}
+
 /** Flugzeug nach den Filtereinstellungen anzeigen? */
 export function passes(ac) {
   const f = settings.filter;
+  // Favoriten immer zeigen; mit „Nur Favoriten“ ausschließlich sie
+  if (settings.favorites.length && isFav(ac)) return true;
+  if (f.onlyFav) return false;
   const onGround = ac.onGround || ac.cls === 'ground';
   if (onGround && !f.ground) return false;
   if (ac.kind === 'flarm' && !f.flarm) return false;

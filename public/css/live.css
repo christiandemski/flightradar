@@ -191,3 +191,28 @@ a { color: var(--accent); }
   .panel { top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 58dvh; border-radius: var(--r) var(--r) 0 0; }
   .statusbar .srcs { display: none; }
 }
+
+/* ---------- Favoriten ---------- */
+.tbtn .cnt { font-size: 11px; font-weight: 700; min-width: 18px; padding: 1px 5px; border-radius: 9px; background: var(--panel2); color: var(--muted); text-align: center; }
+.tbtn .cnt.air { background: var(--accent2); color: #1a1000; }
+.favs .muted { color: var(--muted); }
+.favs .small { font-size: 12px; margin: 10px 0 0; }
+.fav-add { display: grid; gap: 6px; }
+.fav-add input { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel2); outline: none; }
+.fav-add input:focus { border-color: var(--accent); }
+.fav-add .btn { justify-content: center; }
+.favlist { list-style: none; margin: 12px 0 6px; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.fav { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 9px; cursor: pointer; border: 1px solid transparent; }
+.fav:hover { background: var(--panel2); }
+.fav.on { border-color: rgba(255, 181, 71, .35); }
+.fav .ic { width: 28px; height: 28px; flex: none; display: grid; place-items: center; border-radius: 6px; background: rgba(255, 181, 71, .14); color: var(--accent2); overflow: hidden; }
+.fav .ic img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+.fav .main { min-width: 0; flex: 1; }
+.fav .t1 { display: block; font-weight: 700; font-family: var(--mono); }
+.fav .t1 small { font-family: var(--font); font-weight: 500; color: var(--muted); }
+.fav .t2 { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fav .air { color: var(--ok); }
+.fav .off { color: var(--muted); }
+.icon-btn.sm { width: 28px; height: 28px; font-size: 13px; color: var(--muted); }
+.btn.fav-on { color: var(--accent2); border-color: rgba(255, 181, 71, .5); }
+.banner { cursor: pointer; user-select: text; }

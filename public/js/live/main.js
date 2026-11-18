@@ -5,6 +5,7 @@ import { createAircraftLayer } from './aclayer.js';
 import { createLayers } from './layers.js';
 import { createPanel } from './panel.js';
 import { createSearch } from './search.js';
+import { createFavorites } from './favorites.js';
 
 const L = window.L;
 const POLL_MS = 5000;
@@ -66,13 +67,19 @@ const panel = createPanel(app);
 // ---------- Hinweise ----------
 const banner = document.getElementById('banner');
 let toastTimer;
-function toast(msg) {
+/** Hinweis unten einblenden; ms = 0 → bleibt, bis der nächste Hinweis kommt oder er angeklickt wird */
+function toast(msg, ms = 4000) {
   banner.textContent = msg;
   banner.dataset.kind = 'toast';
   banner.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { banner.dataset.kind = ''; showCoverageHint(); }, 4000);
+  if (ms) toastTimer = setTimeout(() => { banner.dataset.kind = ''; showCoverageHint(); }, ms);
 }
+app.toast = toast;
+banner.addEventListener('click', () => {
+  if (getSelection().toString()) return; // Text wird gerade markiert (z. B. der geteilte Link)
+  banner.dataset.kind = ''; banner.hidden = true; showCoverageHint();
+});
 let partial = false;
 function showCoverageHint() {
   if (banner.dataset.kind === 'toast') return;
@@ -254,13 +261,33 @@ map.on('moveend', () => {
   moveDeb = setTimeout(poll, 300);
 });
 
+// Direktlink /f/<Flug>: solange der Flug gewählt ist, bleibt die Adresse so (Neuladen findet ihn wieder)
+const linkedQuery = decodeURIComponent(location.pathname.match(/^\/f\/([^/]+)/)?.[1] || '').trim();
+let linkedId = null;
+
 function writeHash() {
   const c = map.getCenter();
   const p = new URLSearchParams();
   p.set('ll', `${c.lat.toFixed(4)},${c.lng.toFixed(4)},${map.getZoom()}`);
-  if (app.selectedId) p.set('ac', app.selectedId);
-  history.replaceState(null, '', `#${p.toString().replace(/%2C/g, ',')}`);
+  const keepPath = linkedQuery && (app.selectedId === linkedId || !linkedId);
+  if (app.selectedId && !keepPath) p.set('ac', app.selectedId);
+  history.replaceState(null, '', `${keepPath ? location.pathname : '/'}#${p.toString().replace(/%2C/g, ',')}`);
 }
+
+/** Direktlink teilen: Flug (/f/LH400) oder Flugzeug (#ac=hex) */
+app.share = async (flight, title, btn, path) => {
+  const url = `${location.origin}${path || `/f/${encodeURIComponent(flight.replace(/\s+/g, ''))}`}`;
+  if (navigator.share && matchMedia('(pointer: coarse)').matches) {
+    try { await navigator.share({ title, url }); return; } catch { /* abgebrochen → kopieren */ }
+  }
+  // Link sofort zeigen (zum Abschreiben/Markieren), dann in die Zwischenablage kopieren
+  toast(`Link: ${url}`, 15000);
+  try {
+    await Promise.race([navigator.clipboard.writeText(url), new Promise((_, rej) => setTimeout(rej, 3000))]);
+    toast(`Link kopiert: ${url}`, 6000);
+  } catch { /* Zwischenablage nicht erlaubt – Link bleibt eingeblendet */ }
+  void btn;
+};
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && app.selectedId && !e.target.closest('input')) app.select(null);
@@ -269,17 +296,37 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) poll
 
 // ---------- Start ----------
 const meta = await fetch('/api/meta').then(r => r.json()).catch(() => ({}));
-createLayers(map, app, {
+const layersUi = createLayers(map, app, {
   openaipKey: meta.openaipKey,
   onFilter: () => { layer.redraw(); status(); },
   onUnits: () => { app.fmt = makeFmt(settings.units); layer.redraw(); panel.update(); },
   onLabels: () => layer.redraw(),
 });
+app.favorites = createFavorites(app, { onChange: () => { layer.redraw(); status(); panel.update(); } });
+app.closeSheets = except => {
+  if (except !== 'layers') layersUi.close();
+  if (except !== 'favs') app.favorites.close();
+};
 createSearch(app);
 
 const wanted = hash.get('ac');
 await poll();
-if (wanted) {
+
+// Direktlink zu einem Flug: suchen; ist er noch nicht in der Luft, regelmäßig erneut versuchen
+async function openLinked(first) {
+  const j = await fetch(`/api/watch?q=${encodeURIComponent(linkedQuery)}`).then(r => r.json()).catch(() => null);
+  const ac = j?.results?.[0]?.ac;
+  if (ac) {
+    linkedId = ac.id;
+    if (!first) toast(`${linkedQuery} ist jetzt in der Luft`);
+    app.selectFromSearch(ac);
+    return;
+  }
+  toast(`${linkedQuery} ist gerade nicht in der Luft. Der Flug erscheint automatisch, sobald er startet.`, 0);
+  setTimeout(() => openLinked(false), 60000);
+}
+if (linkedQuery) await openLinked(true);
+else if (wanted) {
   if (app.aircraft.has(wanted)) { app.select(wanted); app.centerOn(wanted); }
   else {
     // nicht im Ausschnitt → weltweit suchen
