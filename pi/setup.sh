@@ -215,7 +215,7 @@ HOST="$(hostname)"
 say "Fertig!"
 echo "  Nach dem Neustart zeigt der Pi das Flugradar im Vollbild."
 if [ "$SERVER" = 1 ]; then
-  echo "  Verwaltung (von einem anderen Gerät im WLAN):  http://$HOST.local:8080/"
+  echo "  Verwaltung (von einem anderen Gerät im WLAN):  http://$HOST.local:8080/admin"
   echo "  Tipp: vorher ADMIN_PASSWORD in $APP_DIR/.env setzen, wenn andere im Netz sind."
 fi
 echo "  Display nachts ausschalten: in der Verwaltung → Nachtmodus → \"Display ausschalten (Pi-Kiosk)\""

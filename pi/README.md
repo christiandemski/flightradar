@@ -57,7 +57,7 @@ sudo ./pi/setup.sh --no-server --url https://flightradar.codekorb.de/s/wohnzimme
 
 ## Verwaltung
 
-Läuft der Server auf dem Pi, öffnest du die Verwaltung von jedem Gerät im WLAN: **http://flugradar.local:8080/**.
+Läuft der Server auf dem Pi, öffnest du die Verwaltung von jedem Gerät im WLAN: **http://flugradar.local:8080/admin**.
 Alles, was du dort einstellst, übernimmt der Pi automatisch.
 
 * **Display nachts ausschalten:** Nachtmodus → „Display ausschalten (Pi-Kiosk)“ wählen und die Uhrzeiten setzen. Der Pi schaltet den HDMI-Ausgang aus und morgens wieder ein. Ein Dienst prüft das jede Minute.

@@ -1,7 +1,9 @@
-# Flugradar – Heim-Display
+# Flugradar
 
-Zeigt Flugzeuge rund um einen Standort auf einem Bildschirm an (Pi + Monitor im Bilderrahmen, Tablet oder Browser).
-Node.js-Server ohne Abhängigkeiten, Oberfläche als Web-App.
+Zwei Teile, ein Server (Node.js ohne Abhängigkeiten):
+
+1. **Live-Karte** (`/`): Flugradar zum Selbst-Erkunden, ähnlich wie Flightradar24 oder RadarBox. Die Karte ist frei beweglich, Flugzeuge lassen sich anklicken, die Suche findet Flüge und Flughäfen, Karten und Ebenen sind umschaltbar.
+2. **Bildschirme** (`/s/<name>`, verwaltet unter `/admin`): feste Anzeigen für einen Standort, z. B. ein Pi mit Monitor im Bilderrahmen oder ein Tablet. Ansicht und Design wählst du pro Bildschirm.
 
 ## Starten
 
@@ -10,13 +12,26 @@ npm start          # http://localhost:8080/
 npm run dev        # mit Auto-Neustart bei Code-Änderungen
 ```
 
-* **Verwaltung:** `http://localhost:8080/`. Dort legst du Bildschirme an (Name, PLZ/Ort/Koordinaten, Umkreis, Ansicht, Design, Filter, Nachtmodus).
+* **Live-Karte:** `http://localhost:8080/`
+* **Verwaltung:** `http://localhost:8080/admin`. Dort legst du Bildschirme an (Name, PLZ/Ort/Koordinaten, Umkreis, Ansicht, Design, Filter, Nachtmodus).
 * **Bildschirm:** `http://localhost:8080/s/<id>` (z. B. `/s/wohnzimmer`). Diese Adresse öffnest du im Kiosk-Browser.
   * Tasten: `1` Radar · `2` Karte · `3` Info · `4` Tafel · `5` Himmelsblick · `0` wie konfiguriert · `F` Vollbild · `A` Test-Alarm
   * Ein Klick auf die Kopfzeile wechselt zur nächsten Ansicht, ein Doppelklick schaltet Vollbild.
   * Änderungen in der Verwaltung übernimmt der Bildschirm automatisch, ohne Neuladen.
 
-## Ansichten & Designs
+## Live-Karte
+
+* **Flugzeuge anklicken:** Das Panel zeigt Foto, Airline mit Logo, Route mit Fortschritt und Restflugzeit sowie Typ, Kennzeichen und Halter. Dazu kommen Höhe (barometrisch, GPS, eingestellte Zielhöhe), Geschwindigkeiten (Grund, TAS/IAS, Mach), Wind und Außentemperatur (soweit gesendet), Squawk, Signalart, Datenquellen und ein Höhen-/Geschwindigkeitsprofil. Die Spur reicht bis zu 60 Minuten zurück, ab dem Zeitpunkt, an dem der Server das Flugzeug zum ersten Mal sieht.
+* **Folgen:** Die Karte wandert mit dem Flugzeug mit. „Link kopieren“ erzeugt einen Direktlink (`/#ac=<hex>`).
+* **Suche** (Taste `/`): Flugnummer (`LH 400`, `FR1234`), Rufzeichen (`DLH400`), Kennzeichen (`D-AIXA` oder `DAIXA`), ICAO-Hex, Typ (`A388`) und Flughäfen (Name, Stadt, IATA/ICAO). Flugzeuge außerhalb des Ausschnitts findet die Suche weltweit über adsb.fi.
+* **Karten:** Dunkel, Straße, Grau (OpenStreetMap), Gelände (OpenTopoMap), Satellit (Esri)
+* **Ebenen:** Flughäfen (OurAirports, Klick zeigt das aktuelle METAR), Regenradar (RainViewer), Tag/Nacht-Grenze, Lufträume (openAIP, nur mit `OPENAIP_KEY`)
+* **Filter:** Flugzeugklassen, FLARM, am Boden, nur Militär, nur bei FR24 gesperrte, Höhenbereich. Einheiten metrisch oder Luftfahrt.
+* Einstellungen und Kartenausschnitt merkt sich der Browser. Die Ansicht funktioniert auch auf dem Handy.
+
+Die Datenquellen fragen im Umkreis von höchstens 250 NM (ca. 460 km) ab. Ist der Ausschnitt größer, markiert ein gestrichelter Kreis den abgedeckten Bereich. Nutzer mit ähnlichem Ausschnitt teilen sich ein Abfragegebiet, insgesamt höchstens 6 Gebiete gleichzeitig. Abfragen an adsb.fi laufen gedrosselt (höchstens 1 pro Sekunde).
+
+## Bildschirme: Ansichten & Designs
 
 | Ansicht | Inhalt |
 |---|---|
@@ -58,7 +73,7 @@ Die Community-Netze oben filtern nicht. Solche Flugzeuge bekommen das Abzeichen 
 Was trotzdem fehlen kann: Flugzeuge ganz ohne Positionssender (nur Mode-S/Mode-C, ohne MLAT-Abdeckung).
 Dagegen hilft ein **eigener Empfänger** (RTL-SDR-Stick + 1090-MHz-Antenne am Pi, `readsb`) und optional ein OGN-Empfänger (868 MHz).
 
-Stammdaten/Route: adsbdb.com · Fotos: adsbdb (airport-data.com) oder planespotters.net (`PHOTO_CONTACT` setzen) · Wetter: Open-Meteo · Geocoding: OpenStreetMap Nominatim
+Stammdaten/Route: adsbdb.com · Fotos: adsbdb (airport-data.com) oder planespotters.net (`PHOTO_CONTACT` setzen) · Wetter: Open-Meteo · Geocoding: OpenStreetMap Nominatim · Flughäfen: OurAirports (gemeinfrei, monatlich nach `data/airports.json` geladen) · METAR: aviationweather.gov
 
 ## Konfiguration (`.env`, siehe `.env.example`)
 
@@ -71,7 +86,9 @@ Stammdaten/Route: adsbdb.com · Fotos: adsbdb (airport-data.com) oder planespott
 | `READSB_URL` | – | eigener Empfänger, z. B. `http://raspberrypi.local/tar1090/data/aircraft.json` |
 | `PHOTO_CONTACT` | – | Kontakt-URL/E-Mail für den planespotters-User-Agent (deren Bedingung) |
 | `LOGO_URLS` | 3 GitHub-Sammlungen | Logo-Quellen, kommagetrennt, der Reihe nach probiert; `{icao}` wird ersetzt; müssen für Unbekannte 404 liefern |
-| `ADMIN_PASSWORD` | – | schützt Verwaltung + Schreib-APIs per Basic-Auth. **Setzen, bevor es ins Internet geht.** |
+| `ADMIN_PASSWORD` | – | schützt Verwaltung (`/admin`) und Schreib-APIs per Basic-Auth. **Setzen, bevor es ins Internet geht.** |
+| `PUBLIC_MAP` | 1 | `0` = auch die Live-Karte braucht das Passwort |
+| `OPENAIP_KEY` | – | kostenloser Schlüssel von openaip.net für die Luftraum-Ebene |
 
 ## Raspberry Pi als Flugradar-Gerät (optional)
 
@@ -80,4 +97,5 @@ Mit `pi/setup.sh` wird ein Raspberry Pi zum Kiosk: Er startet direkt ins Flugrad
 ## Später: flightradar.codekorb.de
 
 Den Server hinter einen Reverse-Proxy (Caddy/nginx) stellen und `ADMIN_PASSWORD` setzen.
-Die Bildschirm-URLs `/s/<id>` bleiben öffentlich lesbar, die Verwaltung ist dann geschützt.
+Live-Karte und Bildschirm-URLs `/s/<id>` bleiben öffentlich, die Verwaltung ist dann geschützt.
+Soll die Live-Karte nicht öffentlich sein (jeder Besucher löst Abfragen bei den Datenquellen aus), zusätzlich `PUBLIC_MAP=0` setzen.
