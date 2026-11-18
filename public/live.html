@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Flugradar Live</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+  <link rel="stylesheet" href="/css/live.css">
+</head>
+<body>
+  <div id="map"></div>
+
+  <header class="topbar">
+    <a class="brand" href="/" title="Flugradar Live">✈<span>Flugradar</span></a>
+    <div class="search" id="search">
+      <input id="q" type="search" placeholder="Flug, Rufzeichen, Kennzeichen, Typ oder Flughafen" autocomplete="off" spellcheck="false" aria-label="Suche">
+      <ul id="results" class="results" role="listbox" hidden></ul>
+    </div>
+    <div class="top-actions">
+      <button id="btnLayers" class="tbtn" title="Karten, Ebenen und Filter" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 8l10 5 10-5-10-5Zm-7.6 8.2L2 12.5l10 5 10-5-2.4-1.3L12 15l-7.6-3.8Zm0 4.5L2 17l10 5 10-5-2.4-1.3L12 19.5l-7.6-3.8Z"/></svg>
+        <span>Ebenen</span><i id="filterDot" class="dot" hidden></i>
+      </button>
+      <a class="tbtn" href="/admin" title="Bildschirme verwalten">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v11H3V5Zm2 2v7h14V7H5Zm3 11h8v2H8v-2Z"/></svg>
+        <span>Bildschirme</span>
+      </a>
+    </div>
+  </header>
+
+  <aside id="layers" class="sheet layers" hidden></aside>
+  <aside id="panel" class="panel" hidden></aside>
+
+  <div id="banner" class="banner" hidden></div>
+  <div id="hover" class="hover" hidden></div>
+
+  <footer class="statusbar">
+    <span id="stCount">Lade …</span>
+    <span id="stSources" class="srcs"></span>
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+  <script type="module" src="/js/live/main.js"></script>
+</body>
+</html>
