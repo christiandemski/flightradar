@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flugradar – Bildschirme</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap">
+  <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+  <header class="top">
+    <h1>✈ Flugradar <span>Bildschirme</span></h1>
+    <button id="newBtn" class="primary">+ Neuer Bildschirm</button>
+  </header>
+
+  <main class="layout">
+    <section>
+      <ul id="list" class="screens"></ul>
+      <div id="status" class="status"></div>
+    </section>
+
+    <section id="editor" class="editor" hidden>
+      <form id="form" autocomplete="off" novalidate>
+        <div class="ed-head">
+          <h2 id="edTitle">Bildschirm</h2>
+          <div class="ed-actions">
+            <a id="openLink" class="btn" target="_blank">Öffnen ↗</a>
+            <button type="button" id="dupBtn" class="btn">Duplizieren</button>
+            <button type="button" id="delBtn" class="btn danger">Löschen</button>
+          </div>
+        </div>
+
+        <fieldset>
+          <legend>Allgemein</legend>
+          <label>Name <input name="name" required maxlength="60" placeholder="z. B. Wohnzimmer"></label>
+          <label>Untertitel <input name="label" maxlength="120" placeholder="z. B. Ortsname (wird beim Suchen gesetzt)"></label>
+          <label>Adresse des Bildschirms
+            <span class="slug"><span class="slug-pre" id="slugPre"></span><input name="slug" maxlength="40" placeholder="wohnzimmer"></span>
+          </label>
+          <p class="hint">Erlaubt: Kleinbuchstaben, Ziffern, Bindestrich. Alte Adressen funktionieren nach dem Umbenennen weiter.</p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Standort</legend>
+          <div class="row">
+            <label class="grow">PLZ, Ort oder Koordinaten <input name="locationQuery" placeholder="60311 · AT 1010 · 50.11, 8.68 · Musterstraße 1, Berlin"></label>
+            <button type="button" id="geoBtn" class="btn">Suchen</button>
+          </div>
+          <div class="row">
+            <label>Breite <input name="lat" type="number" step="any" required></label>
+            <label>Länge <input name="lon" type="number" step="any" required></label>
+            <label>Umkreis <span class="out" data-for="radiusKm"></span><input name="radiusKm" type="range" min="5" max="250" step="5"></label>
+          </div>
+          <p id="geoMsg" class="hint"></p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Darstellung</legend>
+          <div class="choices" id="viewChoices"></div>
+          <div id="rotateBox" class="row sub">
+            <div class="grow"><span class="lbl">Ansichten im Wechsel</span><div class="checks" id="rotateChoices"></div></div>
+            <label>Wechsel alle <input name="rotateSeconds" type="number" min="5" max="3600"> s</label>
+          </div>
+          <span class="lbl">Design</span>
+          <div class="choices themes" id="themeChoices"></div>
+          <div class="row">
+            <label>Einheiten
+              <select name="units"><option value="metric">Metrisch (m, km/h, km)</option><option value="aviation">Luftfahrt (ft/FL, kt, NM)</option></select>
+            </label>
+            <label class="check"><input type="checkbox" name="showSweep"> Radarstrahl animieren</label>
+            <label class="check"><input type="checkbox" name="showLogos"> Airline-Logos anzeigen</label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Himmelsblick</legend>
+          <p class="hint">Für die Ansicht „Himmelsblick“: Wohin schaut dein Fenster bzw. der Bildschirm?</p>
+          <div class="row">
+            <label>Blickrichtung
+              <select name="sky.direction">
+                <option value="0">Norden</option><option value="45">Nordosten</option><option value="90">Osten</option><option value="135">Südosten</option>
+                <option value="180">Süden</option><option value="225">Südwesten</option><option value="270">Westen</option><option value="315">Nordwesten</option>
+              </select>
+            </label>
+            <label>Sichtfeld <span class="out" data-for="sky.fov" data-suffix="°"></span><input name="sky.fov" type="range" min="60" max="360" step="10"></label>
+            <label>Max. Höhenwinkel <span class="out" data-for="sky.maxElev" data-suffix="°"></span><input name="sky.maxElev" type="range" min="20" max="90" step="5"></label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Überflug-Alarm</legend>
+          <label class="check"><input type="checkbox" name="alerts.enabled"> Alarm aktiv – Einblendung, wenn etwas Besonderes vorbeikommt</label>
+          <div id="alertBox" class="sub">
+            <span class="lbl">Auslöser</span>
+            <div class="checks">
+              <label><input type="checkbox" name="alerts.rules.emergency"> Notfall-Squawk (7500/7600/7700)</label>
+              <label><input type="checkbox" name="alerts.rules.mil"> Militär</label>
+              <label><input type="checkbox" name="alerts.rules.special"> Besondere Typen (A380, 747-8, Beluga, An-124 …)</label>
+              <label><input type="checkbox" name="alerts.rules.lowheli"> Hubschrauber unter 2.000 ft</label>
+              <label><input type="checkbox" name="alerts.rules.hidden"> FR24-gesperrt (LADD/PIA)</label>
+              <label><input type="checkbox" name="alerts.rules.close"> Sehr nah</label>
+              <label><input type="checkbox" name="alerts.rules.watch"> Merkliste</label>
+            </div>
+            <div class="row">
+              <label>Alarm-Umkreis <span class="out" data-for="alerts.radiusKm"></span><input name="alerts.radiusKm" type="range" min="1" max="100" step="1"></label>
+              <label>„Sehr nah“ unter (km) <input name="alerts.closeKm" type="number" min="0.5" max="50" step="0.5"></label>
+              <label>… und unter (ft) <input name="alerts.closeAltFt" type="number" min="0" step="100"></label>
+            </div>
+            <label>Merkliste <input name="alerts.watch" placeholder="z. B. A388, B748, D-ABYA, GAF, 3C6444 – Typen, Kennzeichen, Callsign-Anfänge, Hex"></label>
+            <div class="row">
+              <label>Anzeigedauer (s) <input name="alerts.seconds" type="number" min="5" max="300"></label>
+              <label>Pause je Flugzeug (min) <input name="alerts.cooldownMin" type="number" min="1" max="1440"></label>
+            </div>
+            <label class="check"><input type="checkbox" name="alerts.sound"> Gong abspielen</label>
+            <label class="check"><input type="checkbox" name="alerts.wake"> Nachtdimmung während des Alarms aufheben</label>
+            <div class="row"><button type="button" id="testAlertBtn" class="btn">Test-Alarm in der Vorschau</button><span class="hint">Vorher speichern. Notfälle melden sich im ganzen Anzeige-Umkreis.</span></div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Filter</legend>
+          <div class="row">
+            <label>Mindesthöhe (ft) <input name="minAltFt" type="number" min="0" step="500"></label>
+            <label>Maximalhöhe (ft) <input name="maxAltFt" type="number" min="0" step="1000"></label>
+          </div>
+          <label class="check"><input type="checkbox" name="hideGround"> Flugzeuge am Boden ausblenden</label>
+          <label class="check"><input type="checkbox" name="showOgn"> Segelflieger, UL &amp; Kleinflugzeuge via FLARM/OGN anzeigen</label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Nachtmodus</legend>
+          <div class="row">
+            <label>Nachts
+              <select name="nightMode"><option value="dim">abdunkeln</option><option value="off">Display ausschalten (Pi-Kiosk)</option></select>
+            </label>
+            <label>von <input name="dimFrom" type="time"></label>
+            <label>bis <input name="dimTo" type="time"></label>
+            <label>Helligkeit beim Abdunkeln <span class="out" data-for="dimLevel" data-pct></span><input name="dimLevel" type="range" min="0.05" max="1" step="0.05"></label>
+            <label>Aktualisierung <input name="refreshSec" type="number" min="2" max="60"> s</label>
+          </div>
+        </fieldset>
+
+        <div class="save-row">
+          <span id="saveMsg" class="hint"></span>
+          <button class="primary" type="submit">Speichern</button>
+        </div>
+      </form>
+
+      <div class="preview">
+        <div class="pv-head"><span class="lbl">Vorschau (16:10)</span><span class="hint">Tasten im Bildschirm: 1–5 Ansicht · 0 automatisch · F Vollbild · A Test-Alarm</span></div>
+        <div class="pv-frame"><iframe id="preview" title="Vorschau"></iframe></div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="/js/admin.js"></script>
+</body>
+</html>
