@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Flugradar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&family=JetBrains+Mono:wght@400;700&family=Share+Tech+Mono&family=VT323&display=swap">
+  <link rel="stylesheet" href="/css/screen.css">
+</head>
+<body class="theme-nacht">
+  <div id="app">
+    <header id="hdr">
+      <div class="h-left"><span id="hName"></span><span id="hLabel"></span></div>
+      <div class="h-mid" id="hCount"></div>
+      <div class="h-right"><span id="hWeather"></span><span id="hClock"></span></div>
+    </header>
+    <main id="view"></main>
+    <footer id="ftr">
+      <div id="fStats"></div>
+      <div id="fSources"></div>
+    </footer>
+  </div>
+  <div id="dim"></div>
+  <div id="toast"></div>
+  <div id="alert"></div>
+  <script type="module" src="/js/screen.js"></script>
+</body>
+</html>
