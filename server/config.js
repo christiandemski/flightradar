@@ -18,7 +18,11 @@ export const config = {
     'https://raw.githubusercontent.com/Jxck-S/airline-logos/main/flightaware_logos/{icao}.png',
     'https://raw.githubusercontent.com/Jxck-S/airline-logos/main/radarbox_logos/{icao}.png',
   ].join(',')),
-  // gesetzt => Verwaltung (/) und Schreib-APIs per Basic-Auth geschützt (Benutzer egal)
+  // gesetzt => Verwaltung (/admin) und Schreib-APIs per Basic-Auth geschützt (Benutzer egal)
   adminPassword: process.env.ADMIN_PASSWORD || '',
+  // PUBLIC_MAP=0 => auch die Live-Karte (/) braucht das Passwort
+  publicMap: process.env.PUBLIC_MAP !== '0',
+  // optional: Schlüssel von openaip.net für die Luftraum-Ebene auf der Live-Karte
+  openaipKey: process.env.OPENAIP_KEY || '',
   userAgent: 'flightradar-display/0.1',
 };

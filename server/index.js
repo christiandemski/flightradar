@@ -2,8 +2,11 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import zlib from 'node:zlib';
 import { config } from './config.js';
-import { geocode } from './geo.js';
+import { geocode, distanceKm } from './geo.js';
+import { airportsIn, loadAirports, metar } from './airports.js';
+import { search } from './search.js';
 import { buildSources } from './sources.js';
 import { Tracker } from './tracker.js';
 import { details, weather } from './details.js';
@@ -26,8 +29,27 @@ const MIME = {
 
 function send(res, status, body, headers = {}) {
   const isObj = typeof body === 'object' && !Buffer.isBuffer(body);
-  res.writeHead(status, { 'content-type': isObj ? 'application/json; charset=utf-8' : 'text/plain; charset=utf-8', 'cache-control': 'no-store', ...headers });
-  res.end(isObj ? JSON.stringify(body) : body);
+  let data = isObj ? JSON.stringify(body) : body;
+  const h = { 'content-type': isObj ? 'application/json; charset=utf-8' : 'text/plain; charset=utf-8', 'cache-control': 'no-store', ...headers };
+  // große Antworten (Live-Karte mit vielen Flugzeugen) komprimieren
+  if (isObj && data.length > 4096 && /\bgzip\b/.test(res.req?.headers['accept-encoding'] || '')) {
+    data = zlib.gzipSync(data, { level: 5 });
+    h['content-encoding'] = 'gzip';
+    h.vary = 'accept-encoding';
+  }
+  res.writeHead(status, h);
+  res.end(data);
+}
+
+/** "s,w,n,e" → Ausschnitt oder null */
+function parseBbox(v) {
+  const b = String(v || '').split(',').map(Number);
+  if (b.length !== 4 || b.some(n => !Number.isFinite(n))) return null;
+  const [s, w, n, e] = b;
+  if (s >= n) return null;
+  const clampLon = x => ((((x + 180) % 360) + 360) % 360) - 180;
+  // weiter als einmal um die Erde → ganze Welt
+  return e - w >= 360 ? { s: Math.max(-90, s), w: -180, n: Math.min(90, n), e: 180 } : { s: Math.max(-90, s), w: clampLon(w), n: Math.min(90, n), e: clampLon(e) };
 }
 
 function serveFile(res, file) {
@@ -63,12 +85,14 @@ const server = http.createServer(async (req, res) => {
   const q = k => url.searchParams.get(k);
 
   try {
-    const needsAuth = p === '/' || p === '/admin' || p === '/api/geocode' || (p.startsWith('/api/screens') && req.method !== 'GET');
+    const mapApi = ['/', '/api/live', '/api/trail', '/api/search', '/api/airports', '/api/metar'].includes(p);
+    const needsAuth = p === '/admin' || p === '/api/geocode' || (p.startsWith('/api/screens') && req.method !== 'GET') || (mapApi && !config.publicMap);
     if (needsAuth && !authorized(req)) {
       return send(res, 401, 'Anmeldung erforderlich', { 'www-authenticate': 'Basic realm="flightradar"' });
     }
 
-    if (p === '/' || p === '/admin') return serveFile(res, path.join(publicDir, 'admin.html'));
+    if (p === '/') return serveFile(res, path.join(publicDir, 'live.html'));
+    if (p === '/admin' || p === '/admin/') return serveFile(res, path.join(publicDir, 'admin.html'));
     if (/^\/s\/[\w-]+\/?$/.test(p)) return serveFile(res, path.join(publicDir, 'screen.html'));
     // /s/ ohne Namen → erster Bildschirm (praktisch für den Kiosk-Start)
     if (p === '/s' || p === '/s/') {
@@ -76,7 +100,42 @@ const server = http.createServer(async (req, res) => {
       return send(res, 302, '', { location: first ? `/s/${encodeURIComponent(first.id)}${url.search}` : '/' });
     }
 
-    if (p === '/api/meta') return send(res, 200, { views: VIEWS, themes: THEMES, sources: sources.map(s => ({ id: s.id, name: s.name })) });
+    if (p === '/api/meta') return send(res, 200, { views: VIEWS, themes: THEMES, sources: sources.map(s => ({ id: s.id, name: s.name })), openaipKey: config.openaipKey || null });
+
+    // ---------- Live-Karte ----------
+    if (p === '/api/live') {
+      // b = geladener Bereich (etwas größer als sichtbar), v = sichtbarer Ausschnitt
+      const b = parseBbox(q('b'));
+      if (!b) return send(res, 400, { error: 'Ausschnitt (b=s,w,n,e) fehlt' });
+      const v = parseBbox(q('v')) || b;
+      // Mittelpunkt und Radius des sichtbaren Ausschnitts (Datenquellen fragen im Umkreis ab)
+      const clat = (v.s + v.n) / 2;
+      let clon = v.w <= v.e ? (v.w + v.e) / 2 : (v.w + v.e + 360) / 2;
+      if (clon > 180) clon -= 360;
+      const need = Math.max(distanceKm(clat, clon, v.n, v.w), distanceKm(clat, clon, v.s, v.w), distanceKm(clat, clon, v.n, v.e), distanceKm(clat, clon, v.s, v.e));
+      const area = tracker.liveArea(clat, clon, need * 1.15);
+      await area.ready;
+      const partial = distanceKm(area.lat, area.lon, clat, clon) + need > area.radiusKm * 1.02;
+      return send(res, 200, {
+        serverTime: Date.now(),
+        coverage: { lat: area.lat, lon: area.lon, radiusKm: Math.round(area.radiusKm) },
+        partial,
+        aircraft: area.liveView(b),
+        sources: area.sourceStatus(),
+      });
+    }
+    if (p === '/api/trail') {
+      const id = String(q('id') || '').toLowerCase();
+      if (!/^[\w~-]{3,20}$/.test(id)) return send(res, 400, { error: 'id fehlt' });
+      return send(res, 200, { id, trail: tracker.trailFor(id) });
+    }
+    if (p === '/api/search') return send(res, 200, await search(q('q'), tracker, { global: q('global') !== '0' }));
+    if (p === '/api/airports') {
+      const b = parseBbox(q('b'));
+      if (!b) return send(res, 400, { error: 'Ausschnitt (b=s,w,n,e) fehlt' });
+      return send(res, 200, await airportsIn(b, Number(q('z')) || 6), { 'cache-control': 'max-age=600' });
+    }
+    if (p === '/api/metar') return send(res, 200, { metar: await metar(q('icao')) });
 
     if (p === '/api/screens') {
       if (req.method === 'GET') return send(res, 200, store.list());
@@ -133,7 +192,8 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(config.port, config.host, () => {
-  console.log(`Flugradar läuft: http://localhost:${config.port}/`);
+  console.log(`Flugradar läuft: http://localhost:${config.port}/  (Bildschirme: http://localhost:${config.port}/admin)`);
+  setTimeout(() => loadAirports(), 3000); // Flughafenliste im Hintergrund vorbereiten (für Suche und Karte)
   console.log(`Quellen: ${sources.map(s => s.name).join(', ')}`);
   if (!config.adminPassword) console.log('Hinweis: Verwaltung ohne Passwort (ADMIN_PASSWORD setzen, bevor es ins Internet geht).');
 });
