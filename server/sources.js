@@ -4,7 +4,15 @@ const HEADERS = { 'user-agent': config.userAgent, accept: 'application/json' };
 const nm = km => Math.min(250, Math.max(5, Math.ceil(km / 1.852)));
 const f4 = n => n.toFixed(4);
 
-async function get(url, { text = false, timeout = 12000 } = {}) {
+// Manche Dienste erlauben nur ~1 Abfrage/s pro IP – alle Abfragen an denselben Dienst laufen durch ein "Tor"
+const gates = new Map();
+export function gate(key, gapMs) {
+  const prev = gates.get(key) || Promise.resolve();
+  gates.set(key, prev.then(() => new Promise(r => setTimeout(r, gapMs))));
+  return prev;
+}
+
+export async function get(url, { text = false, timeout = 12000 } = {}) {
   const res = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(timeout) });
   if (!res.ok) {
     const e = new Error(`HTTP ${res.status}`);
@@ -45,6 +53,15 @@ export function normReadsb(a, now, source) {
     gsKt: a.gs ?? null,
     track: a.track ?? a.true_heading ?? a.mag_heading ?? null,
     vrFpm: a.baro_rate ?? a.geom_rate ?? null,
+    altGeomFt: typeof a.alt_geom === 'number' ? a.alt_geom : null,
+    navAltFt: a.nav_altitude_mcp ?? a.nav_altitude_fms ?? null,
+    ias: a.ias ?? null,
+    tas: a.tas ?? null,
+    mach: a.mach ?? null,
+    heading: a.true_heading ?? a.mag_heading ?? null,
+    windDir: a.wd ?? null,
+    windKt: a.ws ?? null,
+    oatC: a.oat ?? null,
     squawk: a.squawk || null,
     emergency: a.emergency && a.emergency !== 'none' ? a.emergency : null,
     category: a.category || null,
@@ -57,10 +74,11 @@ export function normReadsb(a, now, source) {
   };
 }
 
-function readsbSource(id, name, intervalMs, urlFn, { adaptRate = false } = {}) {
+function readsbSource(id, name, intervalMs, urlFn, { adaptRate = false, gapMs = 0 } = {}) {
   return {
     id, name, intervalMs,
     async fetch(area) {
+      if (gapMs) await gate(id, gapMs);
       const { res, body } = await get(urlFn(area));
       const now = Date.now();
       const list = (body.ac || body.aircraft || []).map(a => normReadsb(a, now, id)).filter(Boolean);
@@ -134,11 +152,11 @@ function ognSource() {
 export function buildSources() {
   const factories = {
     adsbfi: () => readsbSource('adsbfi', 'adsb.fi', 5000,
-      a => `https://opendata.adsb.fi/api/v3/lat/${f4(a.lat)}/lon/${f4(a.lon)}/dist/${nm(a.radiusKm)}`),
+      a => `https://opendata.adsb.fi/api/v3/lat/${f4(a.lat)}/lon/${f4(a.lon)}/dist/${nm(a.radiusKm)}`, { gapMs: 1100 }),
     adsblol: () => readsbSource('adsblol', 'adsb.lol', 180000,
       a => `https://api.adsb.lol/v2/point/${f4(a.lat)}/${f4(a.lon)}/${nm(a.radiusKm)}`, { adaptRate: true }),
     airplaneslive: () => readsbSource('airplaneslive', 'airplanes.live', 10000,
-      a => `https://api.airplanes.live/v2/point/${f4(a.lat)}/${f4(a.lon)}/${nm(a.radiusKm)}`),
+      a => `https://api.airplanes.live/v2/point/${f4(a.lat)}/${f4(a.lon)}/${nm(a.radiusKm)}`, { gapMs: 1100 }),
     ogn: ognSource,
     readsb: () => readsbSource('readsb', 'Eigener Empfänger', 2000, () => config.readsbUrl),
   };

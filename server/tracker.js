@@ -4,8 +4,14 @@ import { config } from './config.js';
 import { distanceKm, bearingDeg } from './geo.js';
 import { classify } from './sources.js';
 
-const TRAIL_MS = 6 * 60e3;
+const TRAIL_MS = 60 * 60e3;        // so lange merken wir uns Spuren (Live-Karte)
+const SCREEN_TRAIL_MS = 6 * 60e3;  // so viel Spur zeigen die Bildschirme
 const IDLE_MS = 3 * 60e3;
+// Live-Karte: Abfragegebiete in Stufen, damit sich Nutzer mit ähnlichem Ausschnitt ein Gebiet teilen
+const LIVE_MAX_KM = 463;           // 250 NM – Obergrenze der Datenquellen
+const LIVE_STEPS = [40, 80, 160, 300, LIVE_MAX_KM];
+const LIVE_MAX_AREAS = 6;
+const r5 = n => Math.round(n * 1e5) / 1e5;
 const statsDir = path.join(config.dataDir, 'stats');
 
 const today = () => new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD, lokale Zeit
@@ -54,6 +60,58 @@ export class Tracker {
     return a;
   }
 
+  /** Gebiet für einen Kartenausschnitt (Mittelpunkt + Radius); bestehende Gebiete werden mitbenutzt */
+  liveArea(lat, lon, needKm) {
+    needKm = Math.min(LIVE_MAX_KM, Math.max(20, needKm));
+    let best = null;
+    for (const a of this.areas.values()) {
+      if (a.radiusKm && distanceKm(a.lat, a.lon, lat, lon) + needKm <= a.radiusKm && (!best || a.radiusKm < best.radiusKm)) best = a;
+    }
+    if (best) { best.lastUsed = Date.now(); return best; }
+
+    const step = LIVE_STEPS.find(s => s >= needKm) ?? LIVE_MAX_KM;
+    const gKm = step === LIVE_MAX_KM ? step / 12 : step / 5;     // Raster für den Mittelpunkt
+    const gLat = gKm / 111;
+    const gLon = gKm / (111 * Math.max(0.2, Math.cos((lat * Math.PI) / 180)));
+    const clat = Math.max(-85, Math.min(85, Math.round(lat / gLat) * gLat));
+    const clon = Math.round(lon / gLon) * gLon;
+    const radius = Math.min(LIVE_MAX_KM, distanceKm(clat, clon, lat, lon) + needKm);
+    const key = `live_${step}_${clat.toFixed(3)}_${clon.toFixed(3)}`;
+    let a = this.areas.get(key);
+    if (!a) {
+      const live = [...this.areas.values()].filter(x => x.live).sort((x, y) => x.lastUsed - y.lastUsed);
+      while (live.length >= LIVE_MAX_AREAS) { const old = live.shift(); old.flush(); this.areas.delete(old.key); }
+      a = new Area(key, clat, clon, this.sources);
+      a.live = true;
+      this.areas.set(key, a);
+    }
+    if (radius > a.radiusKm) a.radiusKm = radius;
+    a.lastUsed = Date.now();
+    return a;
+  }
+
+  /** Flugzeug in allen Gebieten suchen */
+  find(pred, limit = 50) {
+    const out = new Map();
+    for (const a of this.areas.values()) {
+      for (const ac of a.merged) {
+        if (!out.has(ac.id) && pred(ac)) out.set(ac.id, ac);
+        if (out.size >= limit) return [...out.values()];
+      }
+    }
+    return [...out.values()];
+  }
+
+  /** längste bekannte Spur eines Flugzeugs: [[lat, lon, altFt, t, gsKt]] */
+  trailFor(id) {
+    let best = [];
+    for (const a of this.areas.values()) {
+      const t = a.trails.get(id);
+      if (t && t.pts.length > best.length) best = t.pts;
+    }
+    return best.map(p => [r5(p[0]), r5(p[1]), p[2], p[3], p[4]]);
+  }
+
   tick() {
     const now = Date.now();
     for (const [k, a] of this.areas) {
@@ -72,7 +130,7 @@ export class Tracker {
 
   status() {
     return [...this.areas.values()].map(a => ({
-      key: a.key, lat: a.lat, lon: a.lon, radiusKm: Math.round(a.radiusKm), aircraft: a.merged.length,
+      key: a.key, live: !!a.live, lat: a.lat, lon: a.lon, radiusKm: Math.round(a.radiusKm), aircraft: a.merged.length,
       screens: [...a.screens.keys()], sources: a.sourceStatus(),
     }));
   }
@@ -141,6 +199,9 @@ class Area {
       st.nextAt = Date.now() + wait;
     } finally {
       st.inflight = false;
+      // erste Antwort erst liefern, wenn jede Quelle einmal geantwortet hat (oder nach 8 s)
+      st.tried = true;
+      if (this.state.every(s => s.tried)) this._ready();
     }
   }
 
@@ -194,18 +255,26 @@ class Area {
       if (!t) this.trails.set(ac.id, (t = { pts: [] }));
       const last = t.pts[t.pts.length - 1];
       if (!last || ac.posTime - last[3] > 8000 || distanceKm(last[0], last[1], ac.lat, ac.lon) > 0.4) {
-        if (!last || ac.posTime > last[3]) t.pts.push([ac.lat, ac.lon, Math.round(ac.altFt ?? 0), ac.posTime]);
+        if (!last || ac.posTime > last[3]) t.pts.push([ac.lat, ac.lon, Math.round(ac.altFt ?? 0), ac.posTime, ac.gsKt == null ? null : Math.round(ac.gsKt)]);
       }
       t.last = now;
     }
     for (const [id, t] of this.trails) {
       while (t.pts.length && now - t.pts[0][3] > TRAIL_MS) t.pts.shift();
-      if (!t.pts.length || now - t.last > 5 * 60e3) this.trails.delete(id);
+      if (!t.pts.length || now - t.last > 5 * 60e3) { this.trails.delete(id); continue; }
+      // ältere Punkte ausdünnen (alle 30 s einer), die letzten Minuten bleiben fein aufgelöst
+      if (t.pts.length > 300) {
+        const kept = [];
+        for (const p of t.pts) {
+          const prev = kept[kept.length - 1];
+          if (!prev || now - p[3] < SCREEN_TRAIL_MS || p[3] - prev[3] >= 30e3) kept.push(p);
+        }
+        t.pts = kept;
+      }
     }
 
     // Tagesstatistik je Bildschirm
     for (const sc of this.screens.values()) this.updateStats(sc, now);
-    this._ready();
   }
 
   updateStats(sc, now) {
@@ -268,11 +337,28 @@ class Area {
         ...ac,
         distKm: Math.round(distKm * 100) / 100,
         bearing: Math.round(bearingDeg(screen.lat, screen.lon, ac.lat, ac.lon)),
-        trail: t ? t.pts.map(p => [Math.round(p[0] * 1e5) / 1e5, Math.round(p[1] * 1e5) / 1e5, p[2]]) : [],
+        trail: t ? t.pts.filter(p => Date.now() - p[3] < SCREEN_TRAIL_MS).map(p => [r5(p[0]), r5(p[1]), p[2]]) : [],
       });
     }
     out.sort((a, b) => a.distKm - b.distKm);
     const sc = this.screens.get(screen.id);
     return { aircraft: out, sources: this.sourceStatus(), stats: sc ? summarizeStats(sc.stats) : null };
+  }
+
+  /** Liste für die Live-Karte: alles im Ausschnitt (ohne Spuren, die gibt es pro Flugzeug) */
+  liveView({ s, w, n, e }) {
+    const out = [];
+    for (const ac of this.merged) {
+      if (ac.lat < s || ac.lat > n) continue;
+      if (w <= e ? (ac.lon < w || ac.lon > e) : (ac.lon < w && ac.lon > e)) continue;
+      const { source, ...rest } = ac;
+      rest.lat = r5(ac.lat);
+      rest.lon = r5(ac.lon);
+      if (rest.altFt != null) rest.altFt = Math.round(rest.altFt);
+      if (rest.gsKt != null) rest.gsKt = Math.round(rest.gsKt);
+      if (rest.vrFpm != null) rest.vrFpm = Math.round(rest.vrFpm);
+      out.push(rest);
+    }
+    return out;
   }
 }
