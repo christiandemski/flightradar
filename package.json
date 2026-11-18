@@ -1,0 +1,14 @@
+{
+  "name": "flightradar-display",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Heim-Flugzeug-Display: Radar-, Karten-, Info- und Tafel-Ansicht mit Live-ADS-B/MLAT/FLARM-Daten",
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server/index.js",
+    "dev": "node --env-file-if-exists=.env --watch server/index.js"
+  },
+  "engines": {
+    "node": ">=20.12"
+  }
+}

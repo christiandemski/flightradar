@@ -1,0 +1,3 @@
+# Skripte für den Raspberry Pi müssen Unix-Zeilenenden haben
+*.sh text eol=lf
+*.py text eol=lf
