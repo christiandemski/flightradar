@@ -94,3 +94,28 @@ export async function search(q, tracker, { global = true } = {}) {
   for (const a of aircraft) delete a.source;
   return { aircraft, airports };
 }
+
+// ---------- Favoriten / Direktlinks: genau ein Flugzeug zu einer Flugnummer, einem Rufzeichen oder Kennzeichen ----------
+const EXACT = new Set(['callsign', 'reg', 'hex', 'cn', 'global']);
+const resolveCache = new Map(); // q -> { exp, value }
+
+export async function resolve(q, tracker) {
+  q = String(q || '').trim().slice(0, 20);
+  if (q.length < 2) return null;
+  const key = q.toUpperCase().replace(/[\s-]+/g, '');
+  const hit = resolveCache.get(key);
+  if (hit && hit.exp > Date.now()) return hit.value;
+  const Q = q.toUpperCase();
+  const cands = callsignCandidates(q);
+  // erst unter den bekannten Flugzeugen, sonst weltweit
+  const local = tracker.find(ac => EXACT.has(matchOf(ac, Q, cands)), 5);
+  let ac = local.find(a => !a.onGround) || local[0] || null;
+  if (!ac) {
+    const remote = /^[A-Z0-9\s-]{3,10}$/i.test(q) ? await globalLookup(Q, cands) : [];
+    ac = remote.find(a => !a.onGround) || remote[0] || null;
+  }
+  const value = ac ? (({ source, ...rest }) => rest)(ac) : null;
+  resolveCache.set(key, { exp: Date.now() + (value ? 15e3 : 45e3), value });
+  if (resolveCache.size > 500) resolveCache.delete(resolveCache.keys().next().value);
+  return value;
+}

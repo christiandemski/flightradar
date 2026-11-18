@@ -6,7 +6,7 @@ import zlib from 'node:zlib';
 import { config } from './config.js';
 import { geocode, distanceKm } from './geo.js';
 import { airportsIn, loadAirports, metar } from './airports.js';
-import { search } from './search.js';
+import { search, resolve } from './search.js';
 import { buildSources } from './sources.js';
 import { Tracker } from './tracker.js';
 import { details, weather } from './details.js';
@@ -85,13 +85,14 @@ const server = http.createServer(async (req, res) => {
   const q = k => url.searchParams.get(k);
 
   try {
-    const mapApi = ['/', '/api/live', '/api/trail', '/api/search', '/api/airports', '/api/metar'].includes(p);
+    const mapApi = ['/', '/api/live', '/api/trail', '/api/search', '/api/airports', '/api/metar', '/api/watch'].includes(p) || p.startsWith('/f/');
     const needsAuth = p === '/admin' || p === '/api/geocode' || (p.startsWith('/api/screens') && req.method !== 'GET') || (mapApi && !config.publicMap);
     if (needsAuth && !authorized(req)) {
       return send(res, 401, 'Anmeldung erforderlich', { 'www-authenticate': 'Basic realm="flightradar"' });
     }
 
-    if (p === '/') return serveFile(res, path.join(publicDir, 'live.html'));
+    // Live-Karte; /f/<Flug> ist der Direktlink zu einem Flug (Flugnummer, Rufzeichen oder Kennzeichen)
+    if (p === '/' || /^\/f\/[\w%.-]{2,40}\/?$/.test(p)) return serveFile(res, path.join(publicDir, 'live.html'));
     if (p === '/admin' || p === '/admin/') return serveFile(res, path.join(publicDir, 'admin.html'));
     if (/^\/s\/[\w-]+\/?$/.test(p)) return serveFile(res, path.join(publicDir, 'screen.html'));
     // /s/ ohne Namen → erster Bildschirm (praktisch für den Kiosk-Start)
@@ -136,6 +137,12 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, await airportsIn(b, Number(q('z')) || 6), { 'cache-control': 'max-age=600' });
     }
     if (p === '/api/metar') return send(res, 200, { metar: await metar(q('icao')) });
+    // Favoriten: Status mehrerer Flüge auf einmal (?q=LH400,DLH12,D-AIXA)
+    if (p === '/api/watch') {
+      const list = [...new Set(String(q('q') || '').split(',').map(s => s.trim()).filter(Boolean))].slice(0, 25);
+      const results = await Promise.all(list.map(async x => ({ q: x, ac: await resolve(x, tracker) })));
+      return send(res, 200, { serverTime: Date.now(), results });
+    }
 
     if (p === '/api/screens') {
       if (req.method === 'GET') return send(res, 200, store.list());
